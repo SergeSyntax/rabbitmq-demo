@@ -1,10 +1,13 @@
-# Kafka CLI
+# RabbitMQ CLI
 
-## **kafka-topics**
+## **rabbitmq-queues**
 - list rabbitmq queues
   ```sh
   docker exec -it rabbitmq rabbitmqctl list_queues
   ```
+
+
+
 - create kafka topic
   ```sh
   docker exec -it kafka kafka-topics.sh --bootstrap-server localhost:9092 --create --topic some_topic_name --partitions 3 --replication-factor 2
