@@ -1,37 +1,64 @@
-version: '3.9'
+version: "3.9"
+
+name: devops-premade
+
 services:
   rabbitmq:
-    image: rabbitmq:3-management
-    container_name: rabbitmq
+    image: bitnami/rabbitmq:3.13.3-debian-12-r0
+    network_mode: host
+    environment:
+      - RABBITMQ_USERNAME=admin
+      - RABBITMQ_PASSWORD=admin
+      - RABBITMQ_MANAGEMENT_BIND_IP=0.0.0.0
+      - RABBITMQ_MANAGEMENT_PORT_NUMBER=15672
+      - RABBITMQ_NODE_PORT_NUMBER=5672
+      - RABBITMQ_ERL_COOKIE=secretcookie
+      - RABBITMQ_MANAGEMENT_ALLOW_WEB_ACCESS=true
+    volumes:
+      - ${CACHE_DIR:-./cache}/volumes/rabbitmq:/bitnami/rabbitmq
     ports:
-      - 8080:15672
-      - 5672:5672
+      - "15672:15672" # Management console
+      - "5672:5672" # RabbitMQ port
+    user: "0:0"
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      test: ["CMD", "rabbitmq-diagnostics", "status"]
       interval: 30s
-      timeout: 10s
+      timeout: 20s
       retries: 3
-  consumer:
-    build:
-      dockerfile: Dockerfile.dev
-      context: ./rabbitmq-consumer-service
-    volumes:
-      - /app/node_modules
-      - './rabbitmq-consumer-service:/app'
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
+# version: '3.9'
+# services:
+#   rabbitmq:
+#     image: rabbitmq:3-management
+#     container_name: rabbitmq
+#     ports:
+#       - 8080:15672
+#       - 5672:5672
+#     healthcheck:
+#       test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+#       interval: 30s
+#       timeout: 10s
+#       retries: 3
+#   consumer:
+#     build:
+#       dockerfile: Dockerfile.dev
+#       context: ./rabbitmq-consumer-service
+#     volumes:
+#       - /app/node_modules
+#       - './rabbitmq-consumer-service:/app'
+#     depends_on:
+#       rabbitmq:
+#         condition: service_healthy
 
-  producer:
-    build:
-      dockerfile: Dockerfile.dev
-      context: ./rabbitmq-producer-service
-    volumes:
-      - /app/node_modules
-      - './rabbitmq-producer-service:/app'
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
+#   producer:
+#     build:
+#       dockerfile: Dockerfile.dev
+#       context: ./rabbitmq-producer-service
+#     volumes:
+#       - /app/node_modules
+#       - './rabbitmq-producer-service:/app'
+#     depends_on:
+#       rabbitmq:
+#         condition: service_healthy
     # environment:
     #   ALLOW_ANONYMOUS_LOGIN: yes
   # kafka:
