@@ -26,9 +26,11 @@ const queueOptions: Options.AssertQueue = {
 export const channelWrapper = connection.createChannel({
   json: true,
   confirm: true,
+  // publishTimeout: 
   setup: async (channel: Channel) => {
     // Declaring a queue is idempotent - it will only be created if it doesn't exist already. The message content is a byte array, so you can encode whatever you like there.
-     await channel.assertQueue(env.QUEUE_NAME, queueOptions);
+    await channel.prefetch(1);
+    await channel.assertQueue(env.QUEUE_NAME, queueOptions);
   }
 });
 

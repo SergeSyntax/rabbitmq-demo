@@ -1,5 +1,5 @@
 
-export const QUEUE_NAME = 'hello';
+export const QUEUE_NAME = 'media:created';
 export const USERNAME = 'admin';
 export const PASSWORD = 'admin';
 export const HOST = 'localhost';

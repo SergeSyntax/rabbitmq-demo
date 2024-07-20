@@ -1,11 +1,13 @@
 import { env } from './config';
 import connection, { channelWrapper } from './connection';
 
-const message = 'Hello World!';
+const message = 'Hello World....';
 
 const sendMessage = async () => {
   try {
-    await channelWrapper.sendToQueue(env.QUEUE_NAME, { time: Date.now(), message });
+    await channelWrapper.sendToQueue(env.QUEUE_NAME, { time: Date.now(), message }, {
+      persistent: true
+    });
     console.log(' [x] Sent %s', message);
   } catch (err) {
     console.log('Message was rejected:', (err as Error).stack);

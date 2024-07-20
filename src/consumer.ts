@@ -12,13 +12,27 @@ const queueOptions: Options.AssertQueue = {
   }
 };
 
+const handleMessage = async (msg: ConsumeMessage | null) => {
+  if (!msg) return;
 
-const handleMessage = (msg: ConsumeMessage | null) => {
-  console.log(' [x] Received %s', msg?.content.toString() ?? '');
+  try {
+    const data = msg?.content.toString() ?? '';
+    const secs = data.split('.').length - 1;
+  
+    channelWrapper.ack(msg);
+    console.log(' [x] Received %s', data);
+    setTimeout(() => {
+      console.log(' [x] Done');
+    }, secs * 1000);
+  } catch (err) {
+    console.error('Error processing message:', err);
+    // Reject the message and requeue it
+    channelWrapper.nack(msg, false, true);
+  }
 };
 
 const consumeOptions: Options.Consume = {
-  noAck: true 
+  noAck: false
 };
 
 channelWrapper.addSetup(async (channel: Channel) => {
