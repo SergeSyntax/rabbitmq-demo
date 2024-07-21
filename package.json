@@ -15,6 +15,7 @@
     "@types/amqplib": "^0.10.5",
     "amqp-connection-manager": "^4.1.14",
     "amqplib": "^0.10.4",
+    "axios": "^1.7.2",
     "concurrently": "^8.2.2",
     "nodemon": "^3.1.4"
   },
