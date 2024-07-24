@@ -2,7 +2,7 @@ import amqp, { Channel } from 'amqp-connection-manager';
 import { env } from './config';
 
 // Create the connection URL with credentials
-const connectionUrl = `amqp://${env.USERNAME}:${env.PASSWORD}@${env.HOST}:${env.PORT}`;
+const connectionUrl = `amqp://${env.RABBITMQ_USERNAME}:${env.RABBITMQ_PASSWORD}@${env.RABBITMQ_HOST}:${env.RABBITMQ_PORT}`;
 // Create a connetion manager
 const connection = amqp.connect([connectionUrl], {
   connectionOptions: {
