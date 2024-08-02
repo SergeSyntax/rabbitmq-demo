@@ -25,4 +25,14 @@ export const channelWrapper = connection.createChannel({
   }
 });
 
+
+const handleTerm = async () => {
+  await channelWrapper.close();
+  await connection.close()
+  process.exit(0);
+}
+
+process.on('SIGTERM', handleTerm)
+process.on('SIGINT',handleTerm)
+
 export default connection;

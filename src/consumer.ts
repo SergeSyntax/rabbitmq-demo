@@ -1,12 +1,8 @@
 import { Options } from 'amqp-connection-manager';
 import { Channel, ConsumeMessage } from 'amqplib';
-import { env } from './config';
+import { consts, env } from './config';
 import { channelWrapper } from './connection';
-import { EXCHANGE_NAME, generateBindingKey } from './utils';
 import { getQueueKey } from './utils/get-queue-key';
-
-// TABLE_NAME:event-type_POD_NAME
-const QUEUE_NAME = `${env.EVENT_NAME}_${env.POD_NAME}`;
 
 const handleMessage = async (msg: ConsumeMessage | null) => {
   if (!msg) return;
@@ -28,35 +24,30 @@ const handleMessage = async (msg: ConsumeMessage | null) => {
   }
 };
 
-const consumeOptions: Options.Consume = {
-  noAck: false
-};
+const generateConsumer = (eventName: string) => {
+  channelWrapper.addSetup(async (channel: Channel) => {
+    await channel.assertExchange(eventName, 'x-consistent-hash', {
+      durable: true
+    });
 
-async function main() {
-  try {
+    // maybe instead of getting free queues check which one you can delete eachtime a new consumer generated 
     const key = await getQueueKey(env.REPLICAS_NUM);
-    console.log(`Consumer will listen to key: ${key}`);
-
-    const queueOptions: Options.AssertQueue = {
+    const queueName = `${eventName}_${key}`;
+    await channel.assertQueue(queueName, {
       durable: true,
       arguments: {
         'x-queue-type': 'quorum',
         'x-binding-key': key
       }
-    };
-
-    channelWrapper.addSetup(async (channel: Channel) => {
-      await channel.assertQueue(QUEUE_NAME, queueOptions);
-      await channel.assertExchange(EXCHANGE_NAME, 'topic', {
-        durable: true
-      });
-
-      await channel.bindQueue(QUEUE_NAME, EXCHANGE_NAME, generateBindingKey(EXCHANGE_NAME, key));
-      await channel.consume(QUEUE_NAME, handleMessage, consumeOptions);
     });
-  } catch (error) {
-    console.error('Error in main function:', error);
-  }
-}
+    console.log(`Consumer is consuming from queue: ${queueName} with key: ${key}`);
 
-main();
+    const consume_weight = '1'
+    await channel.bindQueue(queueName, eventName, consume_weight);
+
+    const consumeOptions: Options.Consume = { noAck: false };
+    await channel.consume(queueName, handleMessage, consumeOptions);
+  });
+};
+
+generateConsumer(consts.USERS_CREATE_MEDIA_EVENT);

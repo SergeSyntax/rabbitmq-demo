@@ -8,9 +8,6 @@ export const generateUniqueId = () => {
   return crypto.randomBytes(8).toString('hex');
 };
 
-export const EVENT_NAME = 'user:created';
-export const EVENT_TARGET = 'ms-media';
-export const DEPLOYMENT_NAME = 'media-deployment';
 export const POD_NAME = `media-deployment-${generateUniqueId()}`;
 export const REPLICAS_NUM = 3;
 

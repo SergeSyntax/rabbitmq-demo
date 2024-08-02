@@ -16,6 +16,7 @@ services:
       - RABBITMQ_MANAGEMENT_ALLOW_WEB_ACCESS=true
     volumes:
       - ${CACHE_DIR:-./cache}/volumes/rabbitmq:/bitnami/rabbitmq
+      - ./enabled_plugins.conf:/etc/rabbitmq/enabled_plugins
     ports:
       - "15672:15672" # Management console
       - "5672:5672" # RabbitMQ port

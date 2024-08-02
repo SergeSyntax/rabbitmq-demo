@@ -76,3 +76,17 @@ sudo rabbitmqctl list_queues name messages_ready messages_unacknowledged
 ```
 
 
+## Listing exchanges
+To list the exchanges on the server you can run the ever useful rabbitmqctl:
+
+```sh
+sudo rabbitmqctl list_exchanges
+```
+
+
+## Listing bindings
+You can list existing bindings using, you guessed it,
+
+```sh
+rabbitmqctl list_bindings
+```

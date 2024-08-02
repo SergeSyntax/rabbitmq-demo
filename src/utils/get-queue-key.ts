@@ -1,26 +1,30 @@
 import { promisify } from 'node:util';
 import { Queue } from '../types';
 import { fetchFilteredQueues } from './rabbitmq-management';
-import { REPLICAS_NUM } from '../config/env';
+import { SEC } from '../config/consts';
 
+// TODO: require refactor deployments run pods in the same time when init if you init that function 3 times in the same time they all will return the same key 1 and duplicate any message send to each pod which would be a disaster in this scenario
 const delay = promisify(setTimeout);
 
 const getQueues = async (maxQueues: number): Promise<Queue[]> => {
-  const start = Date.now();
-  const SEC = 1000;
-  const timeout = 60 * SEC;
+  const maxRetries = 4;
   const interval = 10 * SEC;
+  let attempt = 0;
 
   try {
     let data: Queue[];
     do {
-      await delay(interval);
       data = await fetchFilteredQueues();
+      
+      if (data.length > 0 && data.length < maxQueues) return data;
 
-      if (Date.now() - start >= timeout) {
-        throw new Error('Timeout: No free slot found within the specified time.');
-      }
-    } while (data.length >= maxQueues);
+      await delay(interval);
+      attempt++;
+    } while (attempt < maxRetries);
+
+    if (data.length >= maxQueues) {
+      throw new Error(`Too many queues (${data.length}), skipping consumption.`);
+    }
 
     return data;
   } catch (error) {
@@ -50,11 +54,11 @@ export const getQueueKey = async (maxQueues: number): Promise<number> => {
 
     const queues = formatQueues(filteredQueues);
 
-    for (let i = 1; i < REPLICAS_NUM; i++) {
+    for (let i = 1; i < maxQueues; i++) {
       if (queues[i] === undefined) return i;
     }
 
-    return REPLICAS_NUM;
+    return maxQueues;
   } catch (error) {
     console.error('Error in getQueueKey function:', error);
     throw new Error(`Failed to determine an available queue key: ${(error as Error).message}`);
