@@ -1,15 +1,9 @@
 import crypto from 'node:crypto';
+import { generateUniqueId } from '../utils/generate-unique-id';
 
-/**
- * Generate a unique identifier similar to Kubernetes pod suffix.
- * @returns {string} A unique identifier.
- */
-export const generateUniqueId = () => {
-  return crypto.randomBytes(8).toString('hex');
-};
 
 export const POD_NAME = `media-deployment-${generateUniqueId()}`;
-export const REPLICAS_NUM = 3;
+export const SERVICE_NAME = 'media'
 
 export const RABBITMQ_USERNAME = 'admin';
 export const RABBITMQ_PASSWORD = 'admin';

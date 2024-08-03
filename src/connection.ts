@@ -22,7 +22,7 @@ export const channelWrapper = connection.createChannel({
   setup: async (channel: Channel) => {
     // Declaring a queue is idempotent - it will only be created if it doesn't exist already. The message content is a byte array, so you can encode whatever you like there.
     await channel.prefetch(1);
-  }
+  },
 });
 
 

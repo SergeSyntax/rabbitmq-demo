@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "publish": "nodemon --exec ts-node src/publisher.ts",
-    "consume": "ts-node src/consumer.ts"
+    "consume": "nodemon --exec ts-node src/consumer.ts"
   },
   "keywords": [],
   "author": "",

@@ -1,39 +1,29 @@
-import { Channel, Options } from 'amqp-connection-manager';
-import  { channelWrapper } from './connection';
-import { consts } from './config';
-import { v4 as uuidv4 } from 'uuid';
+import { channelWrapper } from './connection';
 import { promisify } from 'node:util';
+import { UserCreatedPublisher } from './events/user-created-publisher';
 
+// Function to send a message
 
-const sendMessage = async (evenName: string, payload: { id: string }) => {
-  await channelWrapper.addSetup(async (channel: Channel) => {
-    await channel.assertExchange(evenName, 'x-consistent-hash', {
-      durable: true
-    });
-  });
-
-  const publishOptions: Options.Publish = {
-    persistent: true
-  };
-
-  await channelWrapper.publish(evenName, payload.id, payload, publishOptions);
-};
+const publisher = new UserCreatedPublisher(channelWrapper);
 
 const delay = promisify(setTimeout);
 
-async function publish_events() {
+// Function to publish events
+async function publishEvents() {
+  console.log('start');
+
   for (let i = 0; i < 500; i++) {
     const message = `Hello World....num: ${i}`;
 
-    const payload = {
+    await publisher.publish({
+      id: i.toString(),
+      email: 'test@test.com',
       message,
-      timestamp: Date.now(),
-      id: uuidv4()
-    };
+      timestamp: new Date()
+    });
 
-    await sendMessage(consts.USERS_CREATE_MEDIA_EVENT, payload);
-    await delay(300);
+    await delay(1900); // Delay to simulate periodic publishing
   }
 }
 
-publish_events()
+publishEvents();
