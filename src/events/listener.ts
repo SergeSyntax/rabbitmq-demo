@@ -1,11 +1,6 @@
 import { Channel, ChannelWrapper } from 'amqp-connection-manager';
 import { ConsumeMessage, Options } from 'amqplib';
-import { Subjects } from './subjects';
-
-interface Event {
-  subject: Subjects;
-  data: unknown;
-}
+import { Event } from './event';
 
 export abstract class Listener<T extends Event> {
   /**
