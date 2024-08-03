@@ -1,10 +1,10 @@
-import { channelWrapper } from './connection';
 import { promisify } from 'node:util';
 import { UserCreatedPublisher } from './events/user-created-publisher';
+import { messageBusConnection } from './events/message-bus-connection';
 
 // Function to send a message
 
-const publisher = new UserCreatedPublisher(channelWrapper);
+const publisher = new UserCreatedPublisher(messageBusConnection.channelWrapper);
 
 const delay = promisify(setTimeout);
 

@@ -1,4 +1,4 @@
-import { channelWrapper } from './connection';
+import { messageBusConnection } from './events/message-bus-connection';
 import { UserCreatedListener } from './events/user-created-listener';
 
-new UserCreatedListener(channelWrapper).listen();
+new UserCreatedListener(messageBusConnection.channelWrapper).listen();

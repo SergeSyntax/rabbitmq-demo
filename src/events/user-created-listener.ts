@@ -1,9 +1,9 @@
 import { ConsumeMessage } from 'amqplib';
 import { env } from '../config';
 import { Listener } from './listener';
-import { channelWrapper } from '../connection';
 import { Subjects } from './subjects';
 import { UserCreatedEvent } from './user-created-event';
+import { messageBusConnection } from './message-bus-connection';
 
 export class UserCreatedListener extends Listener<UserCreatedEvent> {
   readonly subject = Subjects.USER_CREATED;
@@ -15,14 +15,14 @@ export class UserCreatedListener extends Listener<UserCreatedEvent> {
 
       console.log(" [x] %s: '%s'", msg.fields.routingKey, data);
 
-      channelWrapper.ack(msg);
+      messageBusConnection.ack(msg);
       console.log(' [x] Received %s', data);
       setTimeout(() => {
         console.log(' [x] Done');
       }, secs * 1000);
     } catch (err) {
       console.error('Error processing message:', err);
-      channelWrapper.nack(msg, false, true); // Reject the message and requeue it
+      messageBusConnection.nack(msg, false, true); // Reject the message and requeue it
     }
   }
 }
