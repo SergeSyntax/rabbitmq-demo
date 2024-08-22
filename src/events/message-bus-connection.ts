@@ -1,38 +1,89 @@
-import amqp, { AmqpConnectionManager, Channel, ChannelWrapper } from 'amqp-connection-manager';
-import { env } from '../config';
-import { Message } from 'amqplib';
+import amqp, { AmqpConnectionManager, Channel, ChannelWrapper } from "amqp-connection-manager";
+import { Message, Options } from "amqplib";
 
-class MessageBusConnection {
-  public connection: AmqpConnectionManager;
-  public channelWrapper: ChannelWrapper;
+import { logger } from "../utils/logger";
 
-  constructor(urls: string[], connectionName: string) {
-    // Create a connection manager
-    this.connection = amqp.connect(urls, {
-      connectionOptions: {
-        clientProperties: {
-          connection_name: connectionName
-        }
-      }
-    });
+interface MessageBusClientOptions {
+  urls: Options.Connect[];
+  connectionName: string;
+  prefetch?: number;
+  publishTimeout?: number;
+}
 
-    this.connection.on('connect', () => console.log('Connected!'));
-    this.connection.on('disconnect', ({ err }) => console.log('Disconnected.', err.stack));
+export class MessageBusClient {
+  private _connection?: AmqpConnectionManager;
+  private _channelWrapper?: ChannelWrapper;
 
-    this.channelWrapper = this.connection.createChannel({
-      json: true,
-      confirm: true,
-      // publishTimeout:
-      setup: async (channel: Channel) => {
-        // Declaring a queue is idempotent - it will only be created if it doesn't exist already. The message content is a byte array, so you can encode whatever you like there.
-        await channel.prefetch(1);
-      }
-    });
+  public get connection(): AmqpConnectionManager {
+    if (!this._connection) throw new Error("RabbitMQ connection is not established.");
+    return this._connection;
+  }
+  public get channelWrapper(): ChannelWrapper {
+    if (!this._channelWrapper) {
+      throw new Error("RabbitMQ channelWrapper is not established.");
+    }
+    return this._channelWrapper;
   }
 
-  public async close() {
+  constructor(private options: MessageBusClientOptions) {}
+
+  public async connect() {
+    const { urls, connectionName, prefetch = 1, publishTimeout = 10000 } = this.options;
+
+    // Create a connection manager
+    this._connection = amqp.connect(urls, {
+      connectionOptions: {
+        clientProperties: {
+          connection_name: connectionName,
+        },
+      },
+    });
+
+    this.connection.on("connect", () => {
+      logger.info(`[${connectionName}] RabbitMQ connection established.`);
+    });
+
+    this.connection.on("connectFailed", ({ err, url }) => {
+      const { password, username, ...urlParams } = url as Options.Connect;
+      logger.error(
+        `[${connectionName}] RabbitMQ connection to ${JSON.stringify(urlParams)} failed: ${err.message}`,
+      );
+    });
+    this.connection.on("blocked", ({ reason }) => {
+      logger.error(`[${connectionName}] RabbitMQ connection blocked: ${reason}`);
+    });
+
+    this.connection.on("unblocked", () => {
+      logger.info(`[${connectionName}] RabbitMQ connection unblocked.`);
+    });
+
+    this.connection.on("disconnect", ({ err }) => {
+      logger.error(
+        `[${connectionName}] RabbitMQ connection lost: ${err ? err.stack : "Unknown error"}`,
+      );
+    });
+
+    this._channelWrapper = this._connection.createChannel({
+      json: true,
+      confirm: true,
+      publishTimeout,
+      name: connectionName,
+      setup: async (channel: Channel) => {
+        // Declaring a queue is idempotent - it will only be created if it doesn't exist already. The message content is a byte array, so you can encode whatever you like there.
+        await channel.prefetch(prefetch);
+      },
+    });
+
+    await this.channelWrapper.waitForConnect();
+    logger.info(`[${connectionName}] RabbitMQ channel established.`);
+  }
+
+  public async disconnect() {
     await this.channelWrapper.close();
     await this.connection.close();
+    logger.info(
+      `RabbitMQ (${this.options.connectionName}): Connection closed gracefully due to application termination.`,
+    );
   }
 
   public async ack(message: Message, allUpTo?: boolean) {
@@ -43,16 +94,3 @@ class MessageBusConnection {
     return this.channelWrapper.nack(message, allUpTo, requeue);
   }
 }
-
-// Create the connection URL with credentials
-const connectionUrl = `amqp://${env.RABBITMQ_USERNAME}:${env.RABBITMQ_PASSWORD}@${env.RABBITMQ_HOST}:${env.RABBITMQ_PORT}`;
-
-export const messageBusConnection = new MessageBusConnection([connectionUrl], env.POD_NAME);
-
-const handleTerm = async () => {
-  await messageBusConnection.close();
-  process.exit(0);
-};
-
-process.on('SIGTERM', handleTerm);
-process.on('SIGINT', handleTerm);

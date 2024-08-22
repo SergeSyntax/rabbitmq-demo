@@ -1,8 +1,11 @@
 import { Channel, ChannelWrapper } from 'amqp-connection-manager';
 import { ConsumeMessage, Options } from 'amqplib';
-import { Event } from './event';
 
-export abstract class Listener<T extends Event> {
+import { EventStructure } from '../types/events';
+import { logger } from '../utils/logger';
+
+// NOTE: this is only a good choice if all the services written in Javascript/TypeScript if you have for example a service in Java Check alternatives JSON Schema, ProtoBuf and ApacheAvro (mostly focus on java)
+export abstract class Listener<T extends EventStructure> {
   /**
    * The name of the exchange to which this listener will bind.
    * This is the event name we want to distribute across the whole app
@@ -47,9 +50,9 @@ export abstract class Listener<T extends Event> {
   async setupExchange(channel: Channel) {
     try {
       await channel.assertExchange(this.subject, this.exchangeType, this.exchangeOptions);
-      console.log(`Exchange '${this.subject}' of type '${this.exchangeType}' has been asserted successfully.`);
+      logger.debug(`Exchange '${this.subject}' of type '${this.exchangeType}' has been asserted successfully.`);
     } catch (error) {
-      console.error(`Failed to assert exchange '${this.subject}':`, error);
+      logger.error(`Failed to assert exchange '${this.subject}':`, error);
       throw error;
     }
   }
@@ -57,9 +60,9 @@ export abstract class Listener<T extends Event> {
   async setupQueue(channel: Channel) {
     try {
       await channel.assertQueue(this.getQueueName(), this.queueOptions);
-      console.log(`Queue '${this.getQueueName()}' has been asserted successfully.`);
+      logger.debug(`Queue '${this.getQueueName()}' has been asserted successfully.`);
     } catch (error) {
-      console.error(`Failed to setup queue for exchange '${this.subject}':`, error);
+      logger.error(`Failed to setup queue for exchange '${this.subject}':`, error);
       throw error;
     }
   }
@@ -68,11 +71,11 @@ export abstract class Listener<T extends Event> {
     try {
       const queueName = this.getQueueName();
       await channel.bindQueue(queueName, this.subject, this.bindingKey);
-      console.log(
+      logger.debug(
         `Queue '${queueName}' has been asserted and bound to exchange '${this.subject}' with routing key '${this.bindingKey}'.`
       );
     } catch (error) {
-      console.error(`Failed to bind queue to exchange '${this.subject}':`, error);
+      logger.error(`Failed to bind queue to exchange '${this.subject}':`, error);
       throw error;
     }
   }
@@ -89,7 +92,7 @@ export abstract class Listener<T extends Event> {
       // Assuming the message content is JSON, parse it
       return JSON.parse(data);
     } catch (error) {
-      console.error('Error parsing message content:', error);
+      logger.error('Error parsing message content:', error);
       throw error;
     }
   }
@@ -108,16 +111,16 @@ export abstract class Listener<T extends Event> {
           this.getQueueName(),
           msg => {
             if (!msg) {
-              console.warn(`${this.getQueueName()} consumed a null message`);
+              logger.warn(`${this.getQueueName()} consumed a null message`);
               return;
             }
 
             try {
               const parsedData = this.parseMessage(msg);
-              console.log(`Message received from queue '${this.getQueueName()}':`, parsedData);
+              logger.debug(`Message received from queue '${this.getQueueName()}':`, parsedData);
               this.onMessage(parsedData, msg);
             } catch (error) {
-              console.error(`Error handling message from queue '${this.getQueueName()}':`, error);
+              logger.error(`Error handling message from queue '${this.getQueueName()}':`, error);
               this.client.nack(msg, false, false);
             }
           },
@@ -125,9 +128,9 @@ export abstract class Listener<T extends Event> {
         );
       });
 
-      console.log(`Listener for exchange '${this.subject}' is now listening for messages.`);
+      logger.debug(`Listener for exchange '${this.subject}' is now listening for messages.`);
     } catch (error) {
-      console.error(`Failed to setup listener for exchange '${this.subject}':`, error);
+      logger.error(`Failed to setup listener for exchange '${this.subject}':`, error);
       throw error;
     }
   }

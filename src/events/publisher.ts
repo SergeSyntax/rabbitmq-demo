@@ -1,8 +1,10 @@
 import { Channel, ChannelWrapper } from 'amqp-connection-manager';
 import { Options } from 'amqplib';
-import { Event } from './event';
 
-export abstract class Publisher<T extends Event> {
+import { logger } from '../utils/logger';
+import { EventStructure } from '../types/events';
+
+export abstract class Publisher<T extends EventStructure> {
   abstract subject: T['subject'];
 
   private exchangeType = 'topic';
@@ -13,9 +15,9 @@ export abstract class Publisher<T extends Event> {
   async setupExchange(channel: Channel) {
     try {
       await channel.assertExchange(this.subject, this.exchangeType, this.exchangeOptions);
-      console.log(`Exchange '${this.subject}' of type '${this.exchangeType}' has been asserted successfully.`);
+      logger.debug(`Exchange '${this.subject}' of type '${this.exchangeType}' has been asserted successfully.`);
     } catch (error) {
-      console.error(`Failed to assert exchange '${this.subject}':`, error);
+      logger.error(`Failed to assert exchange '${this.subject}':`, error);
       throw error;
     }
   }
@@ -25,17 +27,23 @@ export abstract class Publisher<T extends Event> {
    * @param client - The channel wrapper for managing AMQP connections.
    */
   constructor(private client: ChannelWrapper) {
-    this.client.addSetup(async (channel: Channel) => {
-      await this.setupExchange(channel);
-    });
+    this.client
+      .addSetup(async (channel: Channel) => {
+        await this.setupExchange(channel);
+      })
+      .catch(err => {
+        logger.error(`Error during AMQP setup for subject '${this.subject}':`, err);
+
+        throw err;
+      });
   }
 
   async publish(data: T['data']) {
     try {
       await this.client.publish(this.subject, this.routingKey, data, this.publishOptions);
-      console.log(`Message published to exchange '${this.subject}':`, data);
+      logger.debug(`Message published to exchange '${this.subject}':`, data);
     } catch (error) {
-      console.error(`Failed to publish message to exchange '${this.subject}':`, error);
+      logger.error(`Failed to publish message to exchange '${this.subject}':`, error);
       throw error;
     }
   }

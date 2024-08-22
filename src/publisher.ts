@@ -1,15 +1,22 @@
 import { promisify } from 'node:util';
 import { UserCreatedPublisher } from './events/user-created-publisher';
-import { messageBusConnection } from './events/message-bus-connection';
+import { messageBusClient } from './message-bus-client';
 
-// Function to send a message
+const handleTerm = async () => {
+  await messageBusClient.disconnect();
+  process.exit();
+};
+process.on('SIGTERM', handleTerm);
+process.on('SIGINT', handleTerm);
 
-const publisher = new UserCreatedPublisher(messageBusConnection.channelWrapper);
+async function publish() {
+  await messageBusClient.connect();
 
-const delay = promisify(setTimeout);
+  const publisher = new UserCreatedPublisher(messageBusClient.channelWrapper);
 
-// Function to publish events
-async function publishEvents() {
+  const delay = promisify(setTimeout);
+
+  // Function to publish events
   console.log('start');
 
   for (let i = 0; i < 500; i++) {
@@ -26,4 +33,4 @@ async function publishEvents() {
   }
 }
 
-publishEvents();
+publish();
