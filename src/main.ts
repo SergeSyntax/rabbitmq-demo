@@ -1,3 +1,4 @@
+import ms from 'ms';
 import { UserCreatedListener } from './events/user-created-listener';
 import { UserCreatedPublisher } from './events/user-created-publisher';
 import { messageBusClient } from './message-bus-client';
@@ -23,7 +24,7 @@ export async function publish() {
       timestamp: new Date()
     });
 
-    await delay(2000);
+    await delay(ms('2s'));
   }
 }
 

@@ -1,5 +1,5 @@
-import { Channel, ChannelWrapper } from 'amqp-connection-manager';
-import { Message, Options } from 'amqplib';
+import { ChannelWrapper } from 'amqp-connection-manager';
+import { Options, Channel } from 'amqplib';
 
 import { logger } from '../utils/logger';
 import { EventStructure } from '../types/events';
@@ -38,21 +38,20 @@ export abstract class Publisher<T extends EventStructure> {
       this.client
         .addSetup(async (channel: Channel) => {
           await this.setupExchange(channel);
-
         })
         .catch(err => {
           logger.error(`Error during AMQP setup for subject '${this.exchangeName}':`, err);
 
           throw err;
         });
-
       Publisher.instance = this;
     }
   }
 
   async publish(data: T['data']) {
     try {
-      await this.client.publish(this.exchangeName, this.routingKey, data, this.publishOptions);
+      const wasSent = await this.client.publish(this.exchangeName, this.routingKey, data, this.publishOptions);
+      if (!wasSent) new Error('Message was not confirmed');
       logger.debug(`Message published to exchange '${this.exchangeName}':`, data);
     } catch (error) {
       logger.error(`Failed to publish message to exchange '${this.exchangeName}':`, error);

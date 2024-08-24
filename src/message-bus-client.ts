@@ -7,7 +7,7 @@ import {
   RMQ_PROTOCOL,
   RMQ_USERNAME,
 } from "./config";
-import { MessageBusClient } from "./events/message-bus-connection";
+import { MessageBusClient } from "./events/message-bus-client";
 
 export const messageBusClient = new MessageBusClient({
   urls: RMQ_HOST.split(",").map((hostname) => ({

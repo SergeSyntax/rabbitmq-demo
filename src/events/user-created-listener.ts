@@ -4,6 +4,7 @@ import { Subjects } from './subjects';
 import { UserCreatedEvent } from './user-created-event';
 import * as env from '../config';
 import { delay } from '../utils';
+import ms from 'ms';
 
 export class UserCreatedListener extends Listener<UserCreatedEvent> {
   readonly subject = Subjects.USER_CREATED;
@@ -11,7 +12,7 @@ export class UserCreatedListener extends Listener<UserCreatedEvent> {
 
   async onMessage(data: UserCreatedEvent['data'], _msg: ConsumeMessage) {
     console.log(' [x] Received %s', data);
-    await delay(1900);
-    console.log(' [x] Done');
+    await delay(ms('2s'));
+    console.log(' [x] Done\n');
   }
 }
