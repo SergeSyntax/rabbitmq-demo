@@ -1,6 +1,7 @@
-import { promisify } from 'node:util';
+import { UserCreatedListener } from './events/user-created-listener';
 import { UserCreatedPublisher } from './events/user-created-publisher';
 import { messageBusClient } from './message-bus-client';
+import { delay } from './utils';
 
 const handleTerm = async () => {
   await messageBusClient.disconnect();
@@ -9,15 +10,8 @@ const handleTerm = async () => {
 process.on('SIGTERM', handleTerm);
 process.on('SIGINT', handleTerm);
 
-async function publish() {
-  await messageBusClient.connect();
-
+export async function publish() {
   const publisher = new UserCreatedPublisher(messageBusClient.channelWrapper);
-
-  const delay = promisify(setTimeout);
-
-  // Function to publish events
-  console.log('start');
 
   for (let i = 0; i < 500; i++) {
     const message = `Hello World....num: ${i}`;
@@ -29,8 +23,19 @@ async function publish() {
       timestamp: new Date()
     });
 
-    await delay(1900); // Delay to simulate periodic publishing
+    await delay(2000);
   }
 }
 
-publish();
+async function main() {
+  const publishMode = process.argv.includes('--publish');
+  await messageBusClient.connect();
+
+  if (publishMode) {
+    await publish();
+  } else {
+      await new UserCreatedListener(messageBusClient.channelWrapper).listen();
+  }
+}
+
+main();

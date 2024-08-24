@@ -3,6 +3,7 @@ import { ConsumeMessage, Options } from 'amqplib';
 
 import { EventStructure } from '../types/events';
 import { logger } from '../utils/logger';
+import ms from 'ms';
 
 // NOTE: this is only a good choice if all the services written in Javascript/TypeScript if you have for example a service in Java Check alternatives JSON Schema, ProtoBuf and ApacheAvro (mostly focus on java)
 export abstract class Listener<T extends EventStructure> {
@@ -24,18 +25,51 @@ export abstract class Listener<T extends EventStructure> {
    * @param data - The parsed message data.
    * @param msg - The original message from the queue.
    */
-  abstract onMessage(data: T['data'], msg: ConsumeMessage): void;
+  abstract onMessage(data: T['data'], msg: ConsumeMessage): Promise<void>;
 
-  private exchangeType = 'topic';
+  protected dlxMessageTtl = ms('10 days');
+  protected maxRetryLimit = 15;
+
+  private exchangeType: 'direct' | 'topic' | 'headers' | 'fanout' | 'match' = 'topic';
   private exchangeOptions: Options.AssertExchange = { durable: true };
-  private queueOptions: Options.AssertQueue = {
-    durable: true,
-    arguments: {
-      'x-queue-type': 'quorum'
-    }
-  };
+  private dlxExchangeOptions: Options.AssertExchange = { durable: true };
+  private queueType: 'quorum' | 'classic' = 'quorum';
+
+  protected get dlxQueueOptions(): Options.AssertQueue {
+    return {
+      durable: true,
+      autoDelete: false,
+      exclusive: false,
+      messageTtl: this.dlxMessageTtl,
+      deadLetterExchange: '',
+      arguments: {
+        'x-queue-type': this.queueType
+      }
+    };
+  }
+
+  protected get queueOptions(): Options.AssertQueue {
+    return {
+      durable: true,
+      autoDelete: false,
+      exclusive: false,
+      arguments: {
+        'x-queue-type': this.queueType,
+        'x-delivery-limit': this.maxRetryLimit
+      }
+    };
+  }
+
+  getQueueOptions(deadLetterExchange: string): Options.AssertQueue {
+    return {
+      ...this.queueOptions,
+      deadLetterExchange
+    };
+  }
+
   private consumeOptions: Options.Consume = { noAck: false };
-  private bindingKey = '#';
+  private routingKey = '#';
+  private dlxRoutingKey = '#';
 
   /**
    * Creates an instance of Listener.
@@ -43,39 +77,50 @@ export abstract class Listener<T extends EventStructure> {
    */
   constructor(private client: ChannelWrapper) {}
 
-  getQueueName() {
-    return `${this.subject}.${this.group}`;
+  get queueName() {
+    return `q.${this.subject}.${this.group}`;
   }
 
-  async setupExchange(channel: Channel) {
+  get exchangeName() {
+    return `ex.${this.subject}`;
+  }
+
+  get dlxQueueName() {
+    return `q.dlx.${this.subject}.${this.group}`;
+  }
+
+  get dlxExchangeName() {
+    return `ex.dlx.${this.subject}`;
+  }
+
+  async setupExchange(channel: Channel, exchangeName: string, exchangeOptions: Options.AssertExchange) {
     try {
-      await channel.assertExchange(this.subject, this.exchangeType, this.exchangeOptions);
-      logger.debug(`Exchange '${this.subject}' of type '${this.exchangeType}' has been asserted successfully.`);
+      await channel.assertExchange(exchangeName, this.exchangeType, exchangeOptions);
+      logger.debug(`Exchange '${exchangeName}' of type '${this.exchangeType}' has been asserted successfully.`);
     } catch (error) {
-      logger.error(`Failed to assert exchange '${this.subject}':`, error);
+      logger.error(`Failed to assert exchange '${exchangeName}':`, error);
       throw error;
     }
   }
 
-  async setupQueue(channel: Channel) {
+  async setupQueue(channel: Channel, queueName: string, exchangeName: string, queueOptions: Options.AssertQueue) {
     try {
-      await channel.assertQueue(this.getQueueName(), this.queueOptions);
-      logger.debug(`Queue '${this.getQueueName()}' has been asserted successfully.`);
+      await channel.assertQueue(queueName, queueOptions);
+      logger.debug(`Queue '${queueName}' has been asserted successfully.`);
     } catch (error) {
-      logger.error(`Failed to setup queue for exchange '${this.subject}':`, error);
+      logger.error(`Failed to setup queue '${queueName}' for exchange '${exchangeName}':`, error);
       throw error;
     }
   }
 
-  async bindQueueToExchange(channel: Channel) {
+  async bindQueueToExchange(channel: Channel, queueName: string, exchangeName: string, routingKey: string) {
     try {
-      const queueName = this.getQueueName();
-      await channel.bindQueue(queueName, this.subject, this.bindingKey);
+      await channel.bindQueue(queueName, exchangeName, routingKey);
       logger.debug(
-        `Queue '${queueName}' has been asserted and bound to exchange '${this.subject}' with routing key '${this.bindingKey}'.`
+        `Queue '${queueName}' has been asserted and bound to exchange '${exchangeName}' with routing key '${routingKey}'.`
       );
     } catch (error) {
-      logger.error(`Failed to bind queue to exchange '${this.subject}':`, error);
+      logger.error(`Failed to bind queue to exchange '${exchangeName}':`, error);
       throw error;
     }
   }
@@ -97,40 +142,47 @@ export abstract class Listener<T extends EventStructure> {
     }
   }
 
+  handleMessage = async (msg: ConsumeMessage | null): Promise<void> => {
+    const queueName = this.queueName;
+
+    if (!msg) {
+      logger.warn(`${queueName} consumed a null message`);
+      return;
+    }
+
+    try {
+      const parsedData = this.parseMessage(msg);
+      logger.debug(`Message received from queue '${queueName}':`, parsedData);
+      await this.onMessage(parsedData, msg);
+      this.client.ack(msg); // Acknowledge the message upon successful processing
+    } catch (error) {
+      logger.error(`Error handling message from queue '${queueName}':`, error);
+      this.client.nack(msg, false, true); // Negative acknowledge to retry the message
+    }
+  };
+
   /**
    * Starts the listener to consume messages from the queue.
    */
   async listen() {
     try {
       await this.client.addSetup(async (channel: Channel) => {
-        await this.setupExchange(channel);
-        await this.setupQueue(channel);
-        await this.bindQueueToExchange(channel);
+        // setup dead letter exchange queue
+        await this.setupExchange(channel, this.dlxExchangeName, this.dlxExchangeOptions);
+        await this.setupQueue(channel, this.dlxQueueName, this.dlxExchangeName, this.dlxQueueOptions);
+        await this.bindQueueToExchange(channel, this.dlxQueueName, this.dlxExchangeName, this.dlxRoutingKey);
 
-        await channel.consume(
-          this.getQueueName(),
-          msg => {
-            if (!msg) {
-              logger.warn(`${this.getQueueName()} consumed a null message`);
-              return;
-            }
+        // setup exchange and queue
+        await this.setupExchange(channel, this.exchangeName, this.exchangeOptions);
+        await this.setupQueue(channel, this.queueName, this.exchangeName, this.getQueueOptions(this.dlxExchangeName));
+        await this.bindQueueToExchange(channel, this.queueName, this.exchangeName, this.routingKey);
 
-            try {
-              const parsedData = this.parseMessage(msg);
-              logger.debug(`Message received from queue '${this.getQueueName()}':`, parsedData);
-              this.onMessage(parsedData, msg);
-            } catch (error) {
-              logger.error(`Error handling message from queue '${this.getQueueName()}':`, error);
-              this.client.nack(msg, false, false);
-            }
-          },
-          this.consumeOptions
-        );
+        await channel.consume(this.queueName, this.handleMessage, this.consumeOptions);
       });
 
-      logger.debug(`Listener for exchange '${this.subject}' is now listening for messages.`);
+      logger.debug(`Listener for exchange '${this.exchangeName}' is now listening for messages.`);
     } catch (error) {
-      logger.error(`Failed to setup listener for exchange '${this.subject}':`, error);
+      logger.error(`Failed to setup listener for exchange '${this.exchangeName}':`, error);
       throw error;
     }
   }

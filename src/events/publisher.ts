@@ -1,5 +1,5 @@
 import { Channel, ChannelWrapper } from 'amqp-connection-manager';
-import { Options } from 'amqplib';
+import { Message, Options } from 'amqplib';
 
 import { logger } from '../utils/logger';
 import { EventStructure } from '../types/events';
@@ -7,17 +7,22 @@ import { EventStructure } from '../types/events';
 export abstract class Publisher<T extends EventStructure> {
   abstract subject: T['subject'];
 
+  private static instance?: Publisher<any>;
   private exchangeType = 'topic';
   private exchangeOptions: Options.AssertExchange = { durable: true };
-  private publishOptions: Options.Publish = { persistent: true };
+  private publishOptions: Options.Publish = { persistent: true, mandatory: true };
   private routingKey = '#'; // Ensure the routing key pattern matches the listener's expectations
+
+  protected get exchangeName() {
+    return `ex.${this.subject}`;
+  }
 
   async setupExchange(channel: Channel) {
     try {
-      await channel.assertExchange(this.subject, this.exchangeType, this.exchangeOptions);
-      logger.debug(`Exchange '${this.subject}' of type '${this.exchangeType}' has been asserted successfully.`);
+      await channel.assertExchange(this.exchangeName, this.exchangeType, this.exchangeOptions);
+      logger.debug(`Exchange '${this.exchangeName}' of type '${this.exchangeType}' has been asserted successfully.`);
     } catch (error) {
-      logger.error(`Failed to assert exchange '${this.subject}':`, error);
+      logger.error(`Failed to assert exchange '${this.exchangeName}':`, error);
       throw error;
     }
   }
@@ -27,23 +32,30 @@ export abstract class Publisher<T extends EventStructure> {
    * @param client - The channel wrapper for managing AMQP connections.
    */
   constructor(private client: ChannelWrapper) {
-    this.client
-      .addSetup(async (channel: Channel) => {
-        await this.setupExchange(channel);
-      })
-      .catch(err => {
-        logger.error(`Error during AMQP setup for subject '${this.subject}':`, err);
+    if (Publisher.instance) {
+      return Publisher.instance as Publisher<T>;
+    } else {
+      this.client
+        .addSetup(async (channel: Channel) => {
+          await this.setupExchange(channel);
 
-        throw err;
-      });
+        })
+        .catch(err => {
+          logger.error(`Error during AMQP setup for subject '${this.exchangeName}':`, err);
+
+          throw err;
+        });
+
+      Publisher.instance = this;
+    }
   }
 
   async publish(data: T['data']) {
     try {
-      await this.client.publish(this.subject, this.routingKey, data, this.publishOptions);
-      logger.debug(`Message published to exchange '${this.subject}':`, data);
+      await this.client.publish(this.exchangeName, this.routingKey, data, this.publishOptions);
+      logger.debug(`Message published to exchange '${this.exchangeName}':`, data);
     } catch (error) {
-      logger.error(`Failed to publish message to exchange '${this.subject}':`, error);
+      logger.error(`Failed to publish message to exchange '${this.exchangeName}':`, error);
       throw error;
     }
   }
