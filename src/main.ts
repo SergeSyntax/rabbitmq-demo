@@ -11,7 +11,7 @@ const handleTerm = async () => {
 process.on('SIGTERM', handleTerm);
 process.on('SIGINT', handleTerm);
 
-export async function publish() {
+export async function publishBatch() {
   const publisher = new UserCreatedPublisher(messageBusClient.channelWrapper);
 
   for (let i = 0; i < 500; i++) {
@@ -33,7 +33,7 @@ async function main() {
   await messageBusClient.connect();
 
   if (publishMode) {
-    await publish();
+    await publishBatch();
   } else {
       await new UserCreatedListener(messageBusClient.channelWrapper).listen();
   }

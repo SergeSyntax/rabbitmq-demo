@@ -11,7 +11,7 @@ export const {
   RMQ_USERNAME = "admin",
   RMQ_PASSWORD = "admin",
   RMQ_HOST = "localhost",
-  RMQ_PORT = "5672",
+  RMQ_PORT = "5672,5673,5674",
   RMQ_VHOST = "/",
   RMQ_PROTOCOL = "amqp",
   POD_NAME = `media-deployment-${generateUniqueId()}`

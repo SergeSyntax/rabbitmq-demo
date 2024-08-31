@@ -1,105 +1,92 @@
-version: "3.9"
+version: '3.9'
 
 name: devops-premade
 
 services:
-  rabbitmq:
+  rabbitmq1:
     image: bitnami/rabbitmq:3.13.3-debian-12-r0
-    network_mode: host
+    networks: ['rabbitmq_net']
+    user: '0:0'
     environment:
       - RABBITMQ_USERNAME=admin
       - RABBITMQ_PASSWORD=admin
-      - RABBITMQ_MANAGEMENT_BIND_IP=0.0.0.0
-      - RABBITMQ_MANAGEMENT_PORT_NUMBER=15672
-      - RABBITMQ_NODE_PORT_NUMBER=5672
       - RABBITMQ_ERL_COOKIE=secretcookie
+      - RABBITMQ_NODE_NAME=rabbit@rabbitmq1
+      - RABBITMQ_NODE_TYPE=queue-disc
       - RABBITMQ_MANAGEMENT_ALLOW_WEB_ACCESS=true
     volumes:
-      - ${CACHE_DIR:-./cache}/volumes/rabbitmq:/bitnami/rabbitmq
+      - ${CACHE_DIR:-./cache}/volumes/rabbitmq1:/bitnami/rabbitmq
       - ./enabled_plugins.conf:/etc/rabbitmq/enabled_plugins
     ports:
-      - "15672:15672" # Management console
-      - "5672:5672" # RabbitMQ port
-    user: "0:0"
+      - '15672:15672' # Management console
+      - '5672:5672' # RabbitMQ port
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "status"]
+      test: ['CMD', 'rabbitmq-diagnostics', 'ping']
+      start_interval: 30s
       interval: 30s
       timeout: 20s
-      retries: 3
-# version: '3.9'
-# services:
-#   rabbitmq:
-#     image: rabbitmq:3-management
-#     container_name: rabbitmq
-#     ports:
-#       - 8080:15672
-#       - 5672:5672
-#     healthcheck:
-#       test: ["CMD", "rabbitmq-diagnostics", "check_running"]
-#       interval: 30s
-#       timeout: 10s
-#       retries: 3
-#   consumer:
-#     build:
-#       dockerfile: Dockerfile.dev
-#       context: ./rabbitmq-consumer-service
-#     volumes:
-#       - /app/node_modules
-#       - './rabbitmq-consumer-service:/app'
-#     depends_on:
-#       rabbitmq:
-#         condition: service_healthy
+      retries: 9
 
-#   producer:
-#     build:
-#       dockerfile: Dockerfile.dev
-#       context: ./rabbitmq-producer-service
-#     volumes:
-#       - /app/node_modules
-#       - './rabbitmq-producer-service:/app'
-#     depends_on:
-#       rabbitmq:
-#         condition: service_healthy
-    # environment:
-    #   ALLOW_ANONYMOUS_LOGIN: yes
-  # kafka:
-  #   image: bitnami/kafka:3
-  #   container_name: kafka
-  #   depends_on:
-  #     - zookeeper
-  #   ports:
-  #     - "9092:9092"
-  #     - "9093:9093"
-  #   environment:
-  #     KAFKA_BROKER_ID: 1
-  #     KAFKA_CFG_ZOOKEEPER_CONNECT: 'zookeeper:2181'
-  #     ALLOW_PLAINTEXT_LISTENER: yes
-  #     KAFKA_ZOOKEEPER_PROTOCOL: PLAINTEXT
-  #     KAFKA_CFG_LISTENERS: 'INTERNAL://:9093,CLIENT://:9092'
-  #     KAFKA_CFG_ADVERTISED_LISTENERS: 'INTERNAL://kafka:9093,CLIENT://kafka:9092'
-  #     KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: 'CLIENT:PLAINTEXT,INTERNAL:PLAINTEXT'
-  #     KAFKA_INTER_BROKER_LISTENER_NAME: 'CLIENT'
-  #     KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: true
-#   akhq:
-#     image: tchiotludo/akhq:dev
-#     container_name: akhq
-#     environment:
-#       AKHQ_CONFIGURATION: |
-#         akhq:
-#           connections:
-#             docker-kafka-server:
-#               properties:
-#                 bootstrap.servers: "kafka:9092"
-#     ports:
-#       - 8001:8080
+  rabbitmq2:
+    image: bitnami/rabbitmq:3.13.3-debian-12-r0
+    networks: ['rabbitmq_net']
+    user: '0:0'
+    environment:
+      - RABBITMQ_USERNAME=admin
+      - RABBITMQ_PASSWORD=admin
+      - RABBITMQ_ERL_COOKIE=secretcookie
+      - RABBITMQ_NODE_NAME=rabbit@rabbitmq2
+      - RABBITMQ_NODE_TYPE=queue-disc
+      - RABBITMQ_MANAGEMENT_ALLOW_WEB_ACCESS=true
+      - RABBITMQ_CLUSTER_NODE_NAME=rabbit@rabbitmq1
+    volumes:
+      - ${CACHE_DIR:-./cache}/volumes/rabbitmq2:/bitnami/rabbitmq
+      - ./enabled_plugins.conf:/etc/rabbitmq/enabled_plugins
+    ports:
+      - '15673:15672' # Management console
+      - '5673:5672' # RabbitMQ port
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', 'ping']
+      start_interval: 30s
+      interval: 30s
+      timeout: 20s
+      retries: 9
+    depends_on:
+      rabbitmq1:
+        condition: service_healthy
+        required: true
+        restart: true
 
-    # environment:
-    #   - REDIS_HOST=redis
-    #   - REDIS_PORT=6379
+  rabbitmq3:
+    image: bitnami/rabbitmq:3.13.3-debian-12-r0
+    networks: ['rabbitmq_net']
+    user: '0:0'
+    environment:
+      - RABBITMQ_USERNAME=admin
+      - RABBITMQ_PASSWORD=admin
+      - RABBITMQ_ERL_COOKIE=secretcookie
+      - RABBITMQ_NODE_NAME=rabbit@rabbitmq3
+      - RABBITMQ_NODE_TYPE=queue-disc
+      - RABBITMQ_MANAGEMENT_ALLOW_WEB_ACCESS=true
+      - RABBITMQ_CLUSTER_NODE_NAME=rabbit@rabbitmq1
+    volumes:
+      - ${CACHE_DIR:-./cache}/volumes/rabbitmq3:/bitnami/rabbitmq
+      - ./enabled_plugins.conf:/etc/rabbitmq/enabled_plugins
+    ports:
+      - '15674:15672' # Management console
+      - '5674:5672' # RabbitMQ port
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', 'ping']
+      start_interval: 30s
+      interval: 30s
+      timeout: 20s
+      retries: 9
+    depends_on:
+      rabbitmq2:
+        condition: service_healthy
+        required: true
+        restart: true
 
-    # environment:
-    #   - REDIS_HOST=redis
-    #   - REDIS_PORT=6379
-
-
-    
+networks:
+  rabbitmq_net:
+    driver: bridge

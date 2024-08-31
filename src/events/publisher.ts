@@ -3,6 +3,7 @@ import { Options, Channel } from 'amqplib';
 
 import { logger } from '../utils/logger';
 import { EventStructure } from '../types/events';
+import { PublishOptions } from 'amqp-connection-manager/dist/types/ChannelWrapper';
 
 export abstract class Publisher<T extends EventStructure> {
   abstract subject: T['subject'];
@@ -10,6 +11,8 @@ export abstract class Publisher<T extends EventStructure> {
   private static instance?: Publisher<any>;
   private exchangeType = 'topic';
   private exchangeOptions: Options.AssertExchange = { durable: true };
+  // while you can publish messages with priorities the effect on loaded queues
+  // performance might be really significant
   private publishOptions: Options.Publish = { persistent: true, mandatory: true };
   private routingKey = '#'; // Ensure the routing key pattern matches the listener's expectations
 
@@ -48,9 +51,12 @@ export abstract class Publisher<T extends EventStructure> {
     }
   }
 
-  async publish(data: T['data']) {
+  async publish(data: T['data'], options: PublishOptions = {}) {
     try {
-      const wasSent = await this.client.publish(this.exchangeName, this.routingKey, data, this.publishOptions);
+      const wasSent = await this.client.publish(this.exchangeName, this.routingKey, data, {
+        ...this.publishOptions,
+        ...options
+      });
       if (!wasSent) new Error('Message was not confirmed');
       logger.debug(`Message published to exchange '${this.exchangeName}':`, data);
     } catch (error) {
